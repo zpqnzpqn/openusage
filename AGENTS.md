@@ -4,6 +4,8 @@ OpenUsage is a SwiftPM-based SwiftUI menu-bar app for macOS that shows AI provid
 
 This file documents the engineering conventions for the project. Read it before contributing.
 
+> **Repository note:** This is the native Swift edition of OpenUsage. Active development happens on the `swift` branch.
+
 ## Architecture
 
 - SwiftPM executable target; SwiftUI content hosted in an AppKit-owned `NSStatusItem` + `NSPopover`.
