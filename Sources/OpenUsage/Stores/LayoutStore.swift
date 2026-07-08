@@ -97,20 +97,11 @@ final class LayoutStore {
 
     /// Menu-bar display style (Text strip vs. compact Bars). Persisted; defaults to `.text`.
     var menuBarStyle: MenuBarStyle {
-        didSet { defaults.set(menuBarStyle.rawValue, forKey: menuBarStyleKey) }
+        didSet { persistence.saveMenuBarStyle(menuBarStyle) }
     }
 
     private let registry: WidgetRegistry
-    private let defaults: UserDefaults
-    private let storageKey: String
-    private let providerOrderKey: String
-    private let metricOrderKey: String
-    private let seededDefaultsKey: String
-    private let pinsKey: String
-    private let expandedMetricsKey: String
-    private let expandOnEnableKey: String
-    private let expandedProvidersKey: String
-    private let menuBarStyleKey: String
+    private let persistence: LayoutPersistence
     private let defaultMetricIDs: [String]
     private let migrationBaselineMetricIDs: [String]
     private let defaultPinnedMetricIDs: [String]
@@ -129,25 +120,17 @@ final class LayoutStore {
         isProviderEnabled: @escaping @MainActor (String) -> Bool = { _ in true }
     ) {
         self.registry = registry
-        self.defaults = defaults
-        self.storageKey = storageKey
-        self.providerOrderKey = "\(storageKey).providerOrder"
-        self.metricOrderKey = "\(storageKey).metricOrderByProvider"
-        self.seededDefaultsKey = "\(storageKey).seededDefaults"
-        self.pinsKey = "\(storageKey).menuBarPins"
-        self.expandedMetricsKey = "\(storageKey).expandedMetrics"
-        self.expandOnEnableKey = "\(storageKey).expandOnEnable"
-        self.expandedProvidersKey = "\(storageKey).expandedProviders"
-        self.menuBarStyleKey = "\(storageKey).menuBarStyle"
+        let persistence = LayoutPersistence(defaults: defaults, storageKey: storageKey)
+        self.persistence = persistence
         self.defaultMetricIDs = defaultMetricIDs
         self.migrationBaselineMetricIDs = migrationBaselineMetricIDs
         self.defaultPinnedMetricIDs = defaultPinnedMetricIDs
         self.defaultExpandedMetricIDs = defaultExpandedMetricIDs
         self.isProviderEnabled = isProviderEnabled
 
-        let hasStoredLayout = defaults.data(forKey: storageKey) != nil
+        let hasStoredLayout = persistence.hasStoredLayout
         var initialPlaced: [PlacedWidget]
-        if let saved = Self.decodeStored([PlacedWidget].self, from: defaults, forKey: storageKey) {
+        if let saved = persistence.loadPlaced() {
             initialPlaced = saved.filter { registry.descriptor(id: $0.descriptorID) != nil }
         } else {
             initialPlaced = defaultMetricIDs
@@ -156,8 +139,7 @@ final class LayoutStore {
         }
         let seededResult = Self.seedNewDefaultMetrics(
             into: initialPlaced,
-            defaults: defaults,
-            key: seededDefaultsKey,
+            persistence: persistence,
             hasStoredLayout: hasStoredLayout,
             registry: registry,
             defaultMetricIDs: defaultMetricIDs,
@@ -167,7 +149,7 @@ final class LayoutStore {
         placed = initialPlaced
 
         let initialProviderOrder: [String]
-        if let saved = Self.decodeStored([String].self, from: defaults, forKey: providerOrderKey) {
+        if let saved = persistence.loadProviderOrder() {
             initialProviderOrder = saved
         } else {
             initialProviderOrder = registry.providers.map(\.id)
@@ -175,7 +157,7 @@ final class LayoutStore {
         providerOrder = initialProviderOrder
 
         let initialMetricOrder: [String: [String]]
-        if let saved = Self.decodeStored([String: [String]].self, from: defaults, forKey: metricOrderKey) {
+        if let saved = persistence.loadMetricOrder() {
             initialMetricOrder = Self.normalizedMetricOrder(saved, registry: registry)
         } else {
             initialMetricOrder = Self.defaultMetricOrder(registry: registry)
@@ -184,7 +166,7 @@ final class LayoutStore {
 
         // Seed default pins on first launch (no saved value) so the menu bar shows real numbers out of
         // the box; a saved value — including an empty one the user produced by unpinning — is respected.
-        if let savedPins = defaults.stringArray(forKey: pinsKey) {
+        if let savedPins = persistence.loadPins() {
             pinnedMetricIDs = Set(savedPins.filter { registry.descriptor(id: $0) != nil })
         } else {
             pinnedMetricIDs = Set(defaultPinnedMetricIDs.filter { registry.descriptor(id: $0) != nil })
@@ -194,7 +176,7 @@ final class LayoutStore {
         // saved value predates this feature, so its metrics stay always-shown — never silently tuck a
         // metric the user already lived with behind a new caret.
         var shouldPersistExpanded = false
-        if let savedExpanded = defaults.stringArray(forKey: expandedMetricsKey) {
+        if let savedExpanded = persistence.loadExpandedMetrics() {
             expandedMetricIDs = Set(savedExpanded.filter { registry.descriptor(id: $0) != nil })
         } else if hasStoredLayout {
             expandedMetricIDs = []
@@ -205,9 +187,9 @@ final class LayoutStore {
         // Finalized below once `expandedMetricIDs` is settled; seeded here so every stored property is
         // initialized before the reads that compute the real value.
         defaultExpandedOnEnableIDs = []
-        menuBarStyle = defaults.enumValue(forKey: menuBarStyleKey, default: .text)
+        menuBarStyle = persistence.loadMenuBarStyle()
 
-        if let savedExpandedProviders = defaults.stringArray(forKey: expandedProvidersKey) {
+        if let savedExpandedProviders = persistence.loadExpandedProviders() {
             expandedProviderIDs = Set(savedExpandedProviders.filter { registry.provider(id: $0) != nil })
         } else {
             expandedProviderIDs = []
@@ -237,7 +219,7 @@ final class LayoutStore {
         let isExpandOnEnableCandidate: (String) -> Bool = { [registry] id in
             registry.descriptor(id: id) != nil && !expandedNow.contains(id) && !placedIDs.contains(id)
         }
-        if let savedOnEnable = defaults.stringArray(forKey: expandOnEnableKey) {
+        if let savedOnEnable = persistence.loadExpandOnEnable() {
             defaultExpandedOnEnableIDs = Set(savedOnEnable.filter(isExpandOnEnableCandidate))
         } else {
             defaultExpandedOnEnableIDs = Set(defaultExpandedMetricIDs.filter(isExpandOnEnableCandidate))
@@ -795,19 +777,19 @@ final class LayoutStore {
     }
 
     private func persistPins() {
-        defaults.set(Array(pinnedMetricIDs), forKey: pinsKey)
+        persistence.savePins(pinnedMetricIDs)
     }
 
     private func persistExpanded() {
-        defaults.set(Array(expandedMetricIDs), forKey: expandedMetricsKey)
+        persistence.saveExpandedMetrics(expandedMetricIDs)
     }
 
     private func persistExpandOnEnable() {
-        defaults.set(Array(defaultExpandedOnEnableIDs), forKey: expandOnEnableKey)
+        persistence.saveExpandOnEnable(defaultExpandedOnEnableIDs)
     }
 
     private func persistExpandedProviders() {
-        defaults.set(Array(expandedProviderIDs), forKey: expandedProvidersKey)
+        persistence.saveExpandedProviders(expandedProviderIDs)
     }
 
     // MARK: - Mutations
@@ -904,42 +886,19 @@ final class LayoutStore {
     }
 
     private func persist() {
-        persistEncodable(placed, forKey: storageKey)
+        persistence.savePlaced(placed)
     }
 
     private func persistProviderOrder() {
-        persistEncodable(providerOrder, forKey: providerOrderKey)
+        persistence.saveProviderOrder(providerOrder)
     }
 
     private func persistMetricOrder() {
-        persistEncodable(metricOrderByProvider, forKey: metricOrderKey)
+        persistence.saveMetricOrder(metricOrderByProvider)
     }
 
     private func persistSeededDefaults(_ ids: Set<String>) {
-        persistEncodable(Array(ids).sorted(), forKey: seededDefaultsKey)
-    }
-
-    /// Fail loudly: a swallowed encode would silently fail to persist a layout change with zero signal,
-    /// contradicting the project's loud-fail rule (and `ProviderSnapshotCache.save` one store over).
-    private func persistEncodable<T: Encodable>(_ value: T, forKey key: String) {
-        do {
-            defaults.set(try JSONEncoder().encode(value), forKey: key)
-        } catch {
-            AppLog.warn(.config, "failed to persist layout '\(key)': \(error.localizedDescription)")
-        }
-    }
-
-    /// Decode a persisted value, distinguishing "no data" (first launch — silent nil) from "present but
-    /// undecodable" (schema drift / corruption — warn loudly, then nil so init reseeds the default).
-    /// A silent reseed of the user's customized layout is exactly the invisible state loss the rule forbids.
-    private static func decodeStored<T: Decodable>(_ type: T.Type, from defaults: UserDefaults, forKey key: String) -> T? {
-        guard let data = defaults.data(forKey: key) else { return nil }
-        do {
-            return try JSONDecoder().decode(type, from: data)
-        } catch {
-            AppLog.warn(.config, "saved layout '\(key)' failed to decode; reseeding default: \(error.localizedDescription)")
-            return nil
-        }
+        persistence.saveSeededDefaults(ids)
     }
 
     private struct SeededDefaultsResult {
@@ -955,8 +914,7 @@ final class LayoutStore {
 
     private static func seedNewDefaultMetrics(
         into placed: [PlacedWidget],
-        defaults: UserDefaults,
-        key: String,
+        persistence: LayoutPersistence,
         hasStoredLayout: Bool,
         registry: WidgetRegistry,
         defaultMetricIDs: [String],
@@ -964,11 +922,11 @@ final class LayoutStore {
     ) -> SeededDefaultsResult {
         let knownDefaults = knownMetricIDs(defaultMetricIDs, registry: registry)
         let knownDefaultSet = Set(knownDefaults)
-        let hasStoredSeededDefaults = defaults.data(forKey: key) != nil
+        let hasStoredSeededDefaults = persistence.hasStoredSeededDefaults
 
         let seededDefaults: Set<String>
         var shouldPersistSeededDefaults = false
-        if let saved = decodeStored([String].self, from: defaults, forKey: key) {
+        if let saved = persistence.loadSeededDefaults() {
             seededDefaults = Set(knownMetricIDs(saved, registry: registry))
             shouldPersistSeededDefaults = seededDefaults != Set(saved)
         } else if hasStoredLayout {

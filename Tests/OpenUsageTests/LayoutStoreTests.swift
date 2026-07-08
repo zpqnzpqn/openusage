@@ -262,6 +262,39 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertTrue(reloaded.placed.isEmpty)
     }
 
+    func testUnreadableStoredLayoutIsNotMistakenForFreshInstall() {
+        let defaults = makeDefaults("UnreadableExistingLayout")
+        defaults.set(Data("not valid layout data".utf8), forKey: "layout")
+
+        let store = LayoutStore(
+            registry: .mock,
+            defaults: defaults,
+            storageKey: "layout",
+            defaultExpandedMetricIDs: ["claude.weekly"]
+        )
+
+        XCTAssertFalse(
+            store.expandedMetricIDs.contains("claude.weekly"),
+            "present but damaged data is still an existing layout, so fresh-only defaults must stay off"
+        )
+    }
+
+    func testUnreadableSeedMarkerKeepsExistingUserBaseline() {
+        let defaults = makeDefaults("UnreadableSeedMarker")
+        saveStored([PlacedWidget(descriptorID: "claude.session")], forKey: "layout", in: defaults)
+        defaults.set(Data("not valid seeded-default data".utf8), forKey: "layout.seededDefaults")
+
+        let store = LayoutStore(
+            registry: .mock,
+            defaults: defaults,
+            storageKey: "layout",
+            defaultMetricIDs: ["claude.session", "claude.weekly"],
+            migrationBaselineMetricIDs: ["claude.session", "claude.weekly"]
+        )
+
+        XCTAssertEqual(store.placed.map(\.descriptorID), ["claude.session"])
+    }
+
     func testExistingLayoutAutoSeedsOnlyDefaultsAddedAfterBaseline() {
         let defaults = makeDefaults("SeedNewDefault")
         saveStored([PlacedWidget(descriptorID: "claude.session")], forKey: "layout", in: defaults)
