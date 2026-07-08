@@ -27,6 +27,11 @@ struct WidgetRowView: View {
 
     @AppStorage(DensitySetting.key) private var density = DensitySetting.regular
     @State private var modelHover = HoverPopoverState()
+    /// True while the pointer is over the value column of a row that has a model breakdown. Drives the
+    /// hover highlight that signals the value is an interactive target — set the instant the pointer
+    /// arrives (before the reveal dwell), separate from `modelHover` which only flips once the popover
+    /// actually opens.
+    @State private var valueHovering = false
     /// Party easter egg: fill meter bars with the party gradient instead of the severity color. Off by
     /// default everywhere else.
     @Environment(\.popoverPartyMode) private var partyMode
@@ -259,8 +264,22 @@ struct WidgetRowView: View {
     /// and an optional secondary line ("on-device estimate") beneath it.
     private var unboundedRow: some View {
         unboundedRowContent
-            .onChange(of: data.modelBreakdown) { _, _ in modelHover.dismiss() }
-            .onDisappear { modelHover.dismiss() }
+            .onChange(of: data.modelBreakdown) { _, _ in
+                modelHover.dismiss()
+                valueHovering = false
+            }
+            .onDisappear {
+                modelHover.dismiss()
+                valueHovering = false
+            }
+    }
+
+    /// The value column reveals the model breakdown on hover, so it lights up under the pointer the way
+    /// a Finder / System Settings list row does — the native cue that "this is a target." Lit the moment
+    /// the pointer arrives (not after the reveal dwell) and held lit while the popover is open, so the
+    /// value reads as the popover's source. Only rows that actually have a breakdown light up.
+    private var showValueHighlight: Bool {
+        data.hasModelBreakdown && (valueHovering || modelHover.isPresented)
     }
 
     private var unboundedRowContent: some View {
@@ -295,6 +314,19 @@ struct WidgetRowView: View {
                 }
             }
             .multilineTextAlignment(.trailing)
+            // A quaternary chip behind the value — the app's subtle-fill token, in the shared 6pt
+            // continuous corner — signals the value is interactive before the breakdown even opens.
+            // Negative-inset so it hugs the figure without changing the row's height (the text-row
+            // rhythm that clusters Today / Yesterday / Last 30 Days must not shift), and a quick
+            // opacity fade in/out matches macOS hover states.
+            .background {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.quaternary)
+                    .padding(.horizontal, -7)
+                    .padding(.vertical, -4)
+                    .opacity(showValueHighlight ? 1 : 0)
+            }
+            .animation(.easeOut(duration: 0.12), value: showValueHighlight)
             // Both the hover trigger and the popover anchor live on the value column, not the whole
             // row: hovering the label (or empty gap) shouldn't reveal the breakdown — only the figure
             // it explains should — and the arrow then centers on that figure, matching the trend
@@ -302,12 +334,15 @@ struct WidgetRowView: View {
             .contentShape(Rectangle())
             .onContinuousHover { phase in
                 guard data.hasModelBreakdown else {
+                    valueHovering = false
                     modelHover.dismiss()
                     return
                 }
                 if case .active = phase {
+                    valueHovering = true
                     modelHover.inlineHover(true)
                 } else {
+                    valueHovering = false
                     modelHover.inlineHover(false)
                 }
             }
