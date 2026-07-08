@@ -304,12 +304,15 @@ final class StatusItemController: NSObject {
             AppLog.error(.statusItem, "Cannot show panel: status item has no button")
             return
         }
+        // Drop height frames left over from the previous open before changing the visibility signal.
+        // That signal makes SwiftUI immediately queue this open's measured height; invalidating after
+        // it would discard the correct per-display target and leave the panel at its remembered guess.
+        heightController.beginOpening()
         // Mark the popover on-screen before laying out, so the egg's animation loops mount their
         // `TimelineView` clocks in time for the first displayed frame. Read by the SwiftUI egg via
         // `\.popoverIsVisible`; a closed popover keeps the loops unmounted, so a left-on egg costs no CPU.
         container.transparency.setPopoverShown(true)
 
-        heightController.beginOpening()
         // Lay the content out first so the panel opens at the right size (no first-frame flash).
         hostingController.view.layoutSubtreeIfNeeded()
 
