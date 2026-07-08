@@ -183,19 +183,21 @@ struct RateLimitResetsDetail: View {
 
     /// Build the timeline entries from raw expiry instants: sort soonest-first, number from 1, and pair
     /// each exact expiry time with its countdown. A past-due or ≤5-minute expiry can't print a useful
-    /// exact time or countdown, so it reads "Expiring soon" with no trailing countdown — matching
-    /// `Formatters.imminent`.
+    /// exact time or countdown, so it reads "Expiring soon" with no trailing countdown. Imminence keys
+    /// off the *relative* window — `Formatters.whenLabel(.relative)` collapses to `soon` at ≤5 minutes,
+    /// while `.absolute` only collapses once past-due — so both formats agree instead of the exact time
+    /// printing a wall-clock while the countdown reads "soon".
     static func entries(from expiries: [Date], now: Date = Date()) -> [Entry] {
         expiries.sorted().enumerated().map { index, date in
             let relative = Formatters.whenLabel(at: date, mode: .relative, now: now)
             let absolute = Formatters.whenLabel(at: date, mode: .absolute, now: now)
-            let imminent = (absolute == nil || absolute == Formatters.imminent)
+            let imminent = (relative == nil || relative == Formatters.imminent)
             return Entry(
                 id: index,
                 number: index + 1,
                 severity: WidgetData.expirySeverity(secondsRemaining: date.timeIntervalSince(now)),
-                time: imminent ? "Expiring soon" : absolute!,
-                countdown: (imminent || relative == nil || relative == Formatters.imminent) ? nil : relative
+                time: (imminent || absolute == nil) ? "Expiring soon" : absolute!,
+                countdown: imminent ? nil : relative
             )
         }
     }

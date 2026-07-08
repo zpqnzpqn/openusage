@@ -215,6 +215,18 @@ final class ResetDisplayTests: XCTestCase {
         XCTAssertEqual(entries[0].severity, .critical)
     }
 
+    func testResetsPopoverImminentFutureCreditCollapsesToSoon() {
+        // A credit ≤5 minutes out (but not yet past-due): relative mode already reads "soon", so the
+        // exact time must not print a wall-clock while the countdown vanishes — both collapse to
+        // "Expiring soon" with no countdown.
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let entries = RateLimitResetsDetail.entries(from: [now.addingTimeInterval(180)], now: now)
+
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].time, "Expiring soon")
+        XCTAssertNil(entries[0].countdown)
+    }
+
     func testResetsPopoverEmptyWhenNoCredits() {
         XCTAssertTrue(RateLimitResetsDetail.entries(from: [], now: Date()).isEmpty)
     }

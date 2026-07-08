@@ -280,9 +280,10 @@ struct WidgetRowView: View {
     /// resets timeline on the Codex rate-limit-resets row. One `modelHover` coordinator drives both — a
     /// row is only ever one kind — so lighting the value and anchoring the popover share the spend
     /// row's machinery. The resets row qualifies even at "0 available" (empty `expiriesAt`), so its
-    /// empty-state popover stays reachable.
+    /// empty-state popover stays reachable — but only with real data: a "No data" tile must not open a
+    /// popover that reads as "zero credits" (`hasModelBreakdown` already carries its own `hasData`).
     private var hasHoverPopover: Bool {
-        data.hasModelBreakdown || data.showsResetExpiries
+        data.hasModelBreakdown || (data.showsResetExpiries && data.hasData)
     }
 
     private var unboundedRowContent: some View {
