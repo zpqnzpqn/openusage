@@ -110,8 +110,8 @@ enum ZAIUsageMapper {
     }
 
     private static func classifyTokenWindow(_ entry: [String: Any]) throws -> TokenWindow? {
-        guard let unit = strictNumber(entry["unit"]),
-              let number = strictNumber(entry["number"]),
+        guard let unit = ProviderParse.number(entry["unit"]),
+              let number = ProviderParse.number(entry["number"]),
               number > 0 else {
             throw ZAIUsageError.invalidResponse
         }
@@ -138,7 +138,7 @@ enum ZAIUsageMapper {
 
     /// A percentage meter (Session or Weekly) from a `TOKENS_LIMIT` entry.
     private static func percentLine(_ entry: [String: Any], label: String, periodMs: Int) throws -> MetricLine {
-        guard let rawPercentage = strictNumber(entry["percentage"]) else {
+        guard let rawPercentage = ProviderParse.number(entry["percentage"]) else {
             throw ZAIUsageError.invalidResponse
         }
         let percentage = ProviderParse.clampPercent(rawPercentage)
@@ -155,8 +155,8 @@ enum ZAIUsageMapper {
 
     /// TIME_LIMIT → a count meter (used / limit) for monthly web-search/reader calls.
     private static func webSearchLine(from entry: [String: Any]) throws -> MetricLine {
-        guard let used = strictNumber(entry["currentValue"]),
-              let limit = strictNumber(entry["usage"]),
+        guard let used = ProviderParse.number(entry["currentValue"]),
+              let limit = ProviderParse.number(entry["usage"]),
               used >= 0,
               limit >= 0 else {
             throw ZAIUsageError.invalidResponse
@@ -183,19 +183,6 @@ enum ZAIUsageMapper {
             }
         }
         return nil
-    }
-
-    /// JSON booleans bridge through `NSNumber`; they are not quota numbers. Finite numeric strings are
-    /// retained for compatibility with payload revisions the shared parser already accepts.
-    private static func strictNumber(_ value: Any?) -> Double? {
-        if let bridged = value as? NSNumber,
-           CFGetTypeID(bridged) == CFBooleanGetTypeID() {
-            return nil
-        }
-        guard let number = ProviderParse.number(value), number.isFinite else {
-            return nil
-        }
-        return number
     }
 
     /// `nextResetTime` arrives as epoch milliseconds (e.g. `1770648402389`).
