@@ -105,7 +105,7 @@ final class CursorOptionalEndpointTests: XCTestCase {
         XCTAssertTrue(logs.contains("optional prepaid-balance response contained invalid balance metadata"), logs)
     }
 
-    func testMalformedCreditMetadataIsLoggedWithoutBogusBalance() async throws {
+    func testBooleanCreditAndPrepaidMetadataIsLoggedWithoutBogusBalance() async throws {
         let provider = makeProvider { request in
             switch request.url {
             case CursorUsageClient.usageURL:
@@ -120,10 +120,10 @@ final class CursorOptionalEndpointTests: XCTestCase {
                 return HTTPResponse(
                     statusCode: 200,
                     headers: [:],
-                    body: Data(#"{"hasCreditGrants":true,"totalCents":"10000","usedCents":"broken"}"#.utf8)
+                    body: Data(#"{"hasCreditGrants":true,"totalCents":true,"usedCents":0}"#.utf8)
                 )
             case CursorUsageClient.stripeURL:
-                return HTTPResponse(statusCode: 200, headers: [:], body: Data(#"{"customerBalance":0}"#.utf8))
+                return HTTPResponse(statusCode: 200, headers: [:], body: Data(#"{"customerBalance":true}"#.utf8))
             default:
                 return HTTPResponse(statusCode: 404, headers: [:], body: Data())
             }
@@ -134,6 +134,7 @@ final class CursorOptionalEndpointTests: XCTestCase {
         XCTAssertNil(snapshot.errorCategory)
         XCTAssertNil(snapshot.lines.first { $0.label == "Credits" })
         XCTAssertTrue(logs.contains("optional credit-grants response contained invalid grant metadata"), logs)
+        XCTAssertTrue(logs.contains("optional prepaid-balance response contained invalid balance metadata"), logs)
     }
 
     func testFailedGenericRequestFallbackIsLoggedBeforePrimaryMappingError() async throws {
