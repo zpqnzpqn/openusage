@@ -175,6 +175,7 @@ extension OpenCodeUsageError: CategorizedError {
     var errorCategory: ErrorCategory {
         switch self {
         case .notLoggedIn: .notLoggedIn
+        case .credentialsUnreadable, .databaseUnreadable: .credentialAccess
         }
     }
 }

@@ -18,8 +18,8 @@ struct OpenCodeGoWindows: Sendable, Equatable {
 /// earliest-ever local Go usage (calendar-month fallback when there is none). Pure and UTC-based so it is
 /// deterministic and unit-testable; `now`/anchor come from the caller.
 enum OpenCodeGoWindowMath {
-    static let fiveHoursMs: Double = 5 * 60 * 60 * 1000
-    static let weekMs: Double = 7 * 24 * 60 * 60 * 1000
+    static let fiveHoursMs = Double(MetricPeriod.sessionMs)
+    static let weekMs = Double(MetricPeriod.weekMs)
 
     private static let utc: Calendar = {
         var calendar = Calendar(identifier: .gregorian)

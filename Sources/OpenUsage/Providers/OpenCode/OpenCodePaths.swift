@@ -25,9 +25,19 @@ enum OpenCodePaths {
     /// `opencode-next.db` for the `next`/preview line). Globbing all of them (rather than hardcoding
     /// `opencode.db`) means a user on the `next` channel is still tracked. The `.db` suffix excludes the
     /// `-wal`/`-shm` sidecars. Path-sorted for deterministic iteration.
-    static func databaseFiles(in dataDirectory: String) -> [String] {
+    ///
+    /// A missing directory is the normal "never used OpenCode" case and returns `[]`; a directory that
+    /// exists but can't be enumerated (permissions, I/O) rethrows so the caller can't mistake broken
+    /// access for absence.
+    static func databaseFiles(in dataDirectory: String) throws -> [String] {
         let dir = expandHome(dataDirectory)
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
+        let names: [String]
+        do {
+            names = try FileManager.default.contentsOfDirectory(atPath: dir)
+        } catch {
+            guard FileManager.default.fileExists(atPath: dir) else { return [] }
+            throw error
+        }
         return names
             .filter { $0.hasPrefix("opencode") && $0.hasSuffix(".db") }
             .sorted()

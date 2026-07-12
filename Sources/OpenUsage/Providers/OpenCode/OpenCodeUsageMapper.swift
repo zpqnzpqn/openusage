@@ -13,11 +13,11 @@ enum OpenCodeUsageMapper {
         [
             .progress(
                 label: "Session", used: windows.sessionSpend, limit: sessionCap, format: .dollars,
-                resetsAt: windows.sessionResetsAt, periodDurationMs: Int(OpenCodeGoWindowMath.fiveHoursMs)
+                resetsAt: windows.sessionResetsAt, periodDurationMs: MetricPeriod.sessionMs
             ),
             .progress(
                 label: "Weekly", used: windows.weeklySpend, limit: weeklyCap, format: .dollars,
-                resetsAt: windows.weeklyResetsAt, periodDurationMs: Int(OpenCodeGoWindowMath.weekMs)
+                resetsAt: windows.weeklyResetsAt, periodDurationMs: MetricPeriod.weekMs
             ),
             .progress(
                 label: "Monthly", used: windows.monthlySpend, limit: monthlyCap, format: .dollars,

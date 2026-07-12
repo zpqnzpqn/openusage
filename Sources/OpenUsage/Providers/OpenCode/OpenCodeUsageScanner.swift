@@ -22,12 +22,12 @@ struct OpenCodeUsageScanner: Sendable {
     static let goProviderID = "opencode-go"
 
     var sqlite: SQLiteAccessing
-    var databasePaths: @Sendable () -> [String]
+    var databasePaths: @Sendable () throws -> [String]
     private let readFailureReporter: UsageLogReadFailureReporter
 
     init(
         sqlite: SQLiteAccessing = SQLiteCLIAccessor(),
-        databasePaths: @escaping @Sendable () -> [String] = OpenCodeUsageScanner.defaultDatabasePaths,
+        databasePaths: @escaping @Sendable () throws -> [String] = OpenCodeUsageScanner.defaultDatabasePaths,
         readFailureWarning: UsageLogReadFailureReporter.Warning? = nil
     ) {
         self.sqlite = sqlite
@@ -38,20 +38,34 @@ struct OpenCodeUsageScanner: Sendable {
         )
     }
 
-    static let defaultDatabasePaths: @Sendable () -> [String] = {
+    static let defaultDatabasePaths: @Sendable () throws -> [String] = {
         let dir = OpenCodePaths.dataDirectory(
             environment: ProcessEnvironmentReader(),
             homeDirectory: FileManager.default.homeDirectoryForCurrentUser
         )
-        return OpenCodePaths.databaseFiles(in: dir)
+        return try OpenCodePaths.databaseFiles(in: dir)
     }
 
     /// Scan the last `daysBack` days. Returns `nil` only when there is no OpenCode database at all (→ the
     /// provider shows "No data"); a present-but-empty database yields an empty scan (idle tiles collapse
-    /// to "No data" via `SpendTileMapper`). 33 days covers the widest meter window (anchored month) plus
-    /// slack; the tiles/trend are re-bounded to 31 calendar days below.
-    func scan(now: Date, daysBack: Int = 33, hasGoKey: Bool = false) async -> OpenCodeUsageScan? {
-        let paths = databasePaths()
+    /// to "No data" via `SpendTileMapper`). Throws `databaseUnreadable` when databases exist but none
+    /// could be read — an all-failed refresh has no data source and must not render as zero usage.
+    /// 33 days covers the widest meter window (anchored month) plus slack; the tiles/trend are
+    /// re-bounded to 31 calendar days below.
+    func scan(now: Date, daysBack: Int = 33, hasGoKey: Bool = false) async throws -> OpenCodeUsageScan? {
+        let paths: [String]
+        do {
+            paths = try databasePaths()
+        } catch {
+            // The data directory exists but couldn't be enumerated — same failure class as unreadable
+            // databases, edge-logged through the reporter so a persistent failure doesn't spam.
+            let marker = "<data directory>"
+            let newlyFailing = await readFailureReporter.update(checkedPaths: [marker], failingPaths: [marker])
+            if !newlyFailing.isEmpty {
+                AppLog.warn(LogTag.plugin("opencode"), "data directory unreadable: \(error.localizedDescription)")
+            }
+            throw OpenCodeUsageError.databaseUnreadable
+        }
         guard !paths.isEmpty else {
             await readFailureReporter.update(checkedPaths: [], failingPaths: [])
             return nil
@@ -61,7 +75,7 @@ struct OpenCodeUsageScanner: Sendable {
         var rows: [Row] = []
         var anchorMs: Double?
         var checked: Set<String> = []
-        var failing: Set<String> = []
+        var failures: [String: String] = [:]
 
         for path in paths {
             checked.insert(path)
@@ -70,8 +84,7 @@ struct OpenCodeUsageScanner: Sendable {
                     rows.append(contentsOf: Self.parseRows(json))
                 }
             } catch {
-                failing.insert(path)
-                AppLog.warn(LogTag.plugin("opencode"), "usage query failed for \(path): \(error.localizedDescription)")
+                failures[path] = error.localizedDescription
                 continue
             }
             // Monthly cycle anchor: the earliest-ever local Go usage (unbounded, so it survives the
@@ -81,15 +94,25 @@ struct OpenCodeUsageScanner: Sendable {
                 anchorMs = Swift.min(anchorMs ?? value, value)
             }
         }
-        await readFailureReporter.update(checkedPaths: checked, failingPaths: failing)
+        // Per-path detail is logged only for newly failing paths (the reporter edge-triggers), so a
+        // persistently locked database warns once, not on every 5-minute refresh.
+        let newlyFailing = await readFailureReporter.update(checkedPaths: checked, failingPaths: Set(failures.keys))
+        for path in newlyFailing.sorted() {
+            AppLog.warn(LogTag.plugin("opencode"), "usage query failed for \(path): \(failures[path] ?? "unknown error")")
+        }
+        if failures.count == checked.count {
+            throw OpenCodeUsageError.databaseUnreadable
+        }
 
         // Combined hosted daily series (opencode-go + opencode) → the spend tiles + usage trend. Cost is
         // authoritative, so every row is "priced": feed it straight into the shared accumulator.
         let tileSince = JSONLScanning.sinceDate(daysBack: 30, now: now)
         var accumulator = DailyUsageAccumulator()
-        for row in rows where row.date >= tileSince {
+        for row in rows {
+            let date = Date(timeIntervalSince1970: row.ms / 1000)
+            guard date >= tileSince else { continue }
             accumulator.add(
-                day: DailyUsageAccumulator.dayKey(from: row.date),
+                day: DailyUsageAccumulator.dayKey(from: date),
                 tokens: row.tokens, cost: row.cost, model: row.model
             )
         }
@@ -110,11 +133,24 @@ struct OpenCodeUsageScanner: Sendable {
     }
 
     /// Cheap local probe for `hasLocalCredentials()`: does any tracked database hold at least one hosted
-    /// assistant row with a numeric cost? Read-only, no network.
+    /// assistant row with a numeric cost? Read-only, no network. Failures are logged (this runs only
+    /// during first-run / new-provider detection, so there's no refresh spam to throttle); an unreadable
+    /// data directory counts as an OpenCode footprint so `refresh()` gets to surface the real error.
     func hasHostedUsage() -> Bool {
-        for path in databasePaths() {
-            if let value = (try? sqlite.queryValue(path: path, sql: Self.probeSQL)) ?? nil, !value.isEmpty {
-                return true
+        let paths: [String]
+        do {
+            paths = try databasePaths()
+        } catch {
+            AppLog.warn(LogTag.plugin("opencode"), "usage probe: data directory unreadable: \(error.localizedDescription)")
+            return true
+        }
+        for path in paths {
+            do {
+                if let value = try sqlite.queryValue(path: path, sql: Self.probeSQL), !value.isEmpty {
+                    return true
+                }
+            } catch {
+                AppLog.warn(LogTag.plugin("opencode"), "usage probe failed for \(path): \(error.localizedDescription)")
             }
         }
         return false
@@ -124,7 +160,6 @@ struct OpenCodeUsageScanner: Sendable {
 
     private struct Row {
         var ms: Double
-        var date: Date
         var cost: Double
         var tokens: Int
         var model: String
@@ -153,7 +188,6 @@ struct OpenCodeUsageScanner: Sendable {
             let model = (entry[3] as? String) ?? ""
             rows.append(Row(
                 ms: ms,
-                date: Date(timeIntervalSince1970: ms / 1000),
                 cost: cost,
                 tokens: tokens,
                 model: model,
@@ -165,7 +199,8 @@ struct OpenCodeUsageScanner: Sendable {
 
     // MARK: - SQL
 
-    private static let providerFilter = "('opencode-go','opencode')"
+    /// SQL literal built from `hostedProviderIDs`, so the tracked list has one source of truth.
+    private static let providerFilter = "(" + hostedProviderIDs.map { "'\($0)'" }.joined(separator: ",") + ")"
 
     static func dataSQL(cutoffMs: Int) -> String {
         """
@@ -188,7 +223,7 @@ struct OpenCodeUsageScanner: Sendable {
         SELECT MIN(time_created) FROM message
         WHERE json_valid(data)
           AND json_extract(data,'$.role') = 'assistant'
-          AND json_extract(data,'$.providerID') = 'opencode-go'
+          AND json_extract(data,'$.providerID') = '\(goProviderID)'
           AND json_type(data,'$.cost') IN ('integer','real');
         """
 
