@@ -130,10 +130,12 @@ enum UsageHistorySnapshotRenderer {
         local snapshot: ProviderSnapshot,
         history: ProviderUsageHistory,
         descriptor: UsageHistoryDescriptor,
-        now: Date = Date()
+        now: Date = Date(),
+        combined: Bool = true
     ) -> ProviderSnapshot {
         var result = snapshot
         result.lines.removeAll { historyLabels.contains($0.label) }
+        let sourceNote = combined ? "Across your Macs · \(descriptor.sourceNote)" : descriptor.sourceNote
         SpendTileMapper.appendTokenUsage(
             history.series,
             to: &result.lines,
@@ -141,13 +143,13 @@ enum UsageHistorySnapshotRenderer {
             estimated: descriptor.estimatedCost,
             unknownModelsByDay: history.unknownModelsByDay,
             modelUsage: history.modelUsage,
-            modelSourceNote: "Across your Macs · \(descriptor.sourceNote)"
+            modelSourceNote: sourceNote
         )
         SpendTileMapper.appendUsageTrend(
             history.series,
             to: &result.lines,
             now: now,
-            note: "Across your Macs · \(descriptor.sourceNote)"
+            note: sourceNote
         )
         return result
     }
