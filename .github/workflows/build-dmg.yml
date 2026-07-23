@@ -60,10 +60,9 @@ jobs:
             cp "assets/AppIcon.prebuilt/AppIcon.icns" "$APP_RESOURCES/AppIcon.icns"
           fi
 
-          cat > "$APP_CONTENTS/Info.plist" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
+          cat > "$APP_CONTENTS/Info.plist" <<< "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+          <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+          <plist version=\"1.0\">
           <dict>
             <key>CFBundleExecutable</key>
             <string>$APP_NAME</string>
@@ -90,8 +89,7 @@ jobs:
             <key>NSHighResolutionCapable</key>
             <true/>
           </dict>
-          </plist>
-EOF
+          </plist>"
 
           echo "==> Ad-hoc signing bundle..."
           codesign --force --sign - "$APP_HELPERS/openusage" || true
