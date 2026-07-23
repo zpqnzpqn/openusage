@@ -42,7 +42,7 @@ struct PopoverFooter: View {
     private var shareCopiedPill: some View {
         TransientPill(
             systemImage: "checkmark.circle.fill",
-            text: "Copied to clipboard",
+            text: "已複製至剪貼簿",
             tint: Theme.positive,
             trigger: layout.shareConfirmationTrigger
         )
@@ -83,7 +83,7 @@ struct PopoverFooter: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut("r", modifiers: .command)
-        .hoverTooltip("Refresh now (⌘R)")
+        .hoverTooltip("立即重新整理 (⌘R)")
         .disabled(isUpdating)
     }
 
@@ -97,14 +97,14 @@ struct PopoverFooter: View {
     }
 
     private func updateStatusText(now: Date) -> String {
-        if isUpdating { return "Updating…" }
+        if isUpdating { return "更新中…" }
         let base = dataStore.lastRefreshAt ?? now
         let remaining = max(0, base.addingTimeInterval(RefreshSetting.interval).timeIntervalSince(now))
         let totalSeconds = Int(remaining.rounded(.up))
         if totalSeconds >= 60 {
             let minutes = Int((Double(totalSeconds) / 60).rounded(.up))
-            return "Next update in \(minutes)m"
+            return "\(minutes) 分鐘後更新"
         }
-        return "Next update in \(totalSeconds)s"
+        return "\(totalSeconds) 秒後更新"
     }
 }

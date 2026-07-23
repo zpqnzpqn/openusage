@@ -61,7 +61,7 @@ struct HeaderView: View {
             menuItems
         } label: {
             HStack(spacing: 5) {
-                Text("Options")
+                Text("選項")
                     .font(.system(size: 13, weight: .semibold))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 11, weight: .semibold))
@@ -87,12 +87,12 @@ struct HeaderView: View {
     @ViewBuilder
     private var menuItems: some View {
         Button { toggle(.customize) } label: {
-            Label("Customize", systemImage: "slider.horizontal.3")
+            Label("自訂介面", systemImage: "slider.horizontal.3")
         }
         .keyboardShortcut(.return, modifiers: [])
 
         Button { toggle(.settings) } label: {
-            Label("Settings", systemImage: "gearshape")
+            Label("偏好設定", systemImage: "gearshape")
         }
         .keyboardShortcut(",")
 
@@ -101,17 +101,17 @@ struct HeaderView: View {
         shareScreenshotMenu
 
         Button { updater.checkForUpdates() } label: {
-            Label("Check for Updates…", systemImage: "arrow.triangle.2.circlepath")
+            Label("檢查更新…", systemImage: "arrow.triangle.2.circlepath")
         }
         .disabled(!updater.canCheckForUpdates)
 
         Divider()
 
         Button { AboutPanel.present() } label: {
-            Label("About OpenUsage", systemImage: "info.circle")
+            Label("關於 OpenUsage", systemImage: "info.circle")
         }
         Button(role: .destructive) { NSApplication.shared.terminate(nil) } label: {
-            Label("Quit OpenUsage", systemImage: "power")
+            Label("結束 OpenUsage", systemImage: "power")
         }
         .keyboardShortcut("q") // ⌘Q — unowned elsewhere, so safe to register on the item.
     }
@@ -129,7 +129,7 @@ struct HeaderView: View {
             if groups.isEmpty {
                 // No provider is showing anything to screenshot — grey the item out instead of offering
                 // an empty submenu.
-                Button("No Enabled Providers") {}
+                Button("無已啟用的提供者") {}
                     .disabled(true)
             } else {
                 ForEach(groups) { group in
@@ -137,7 +137,7 @@ struct HeaderView: View {
                 }
             }
         } label: {
-            Label("Share Screenshot", systemImage: "square.and.arrow.up")
+            Label("分享截圖", systemImage: "square.and.arrow.up")
         }
     }
 

@@ -27,17 +27,17 @@ struct PopoverTopBar: View {
                 navigationBar(title: customizeTitle, back: customizeBack) {
                     resetAllButton
                 }
-                .alert("Reset All Customization?", isPresented: $isPresentingResetAllConfirm) {
-                    Button("Reset All", role: .destructive) {
+                .alert("重置所有自訂設定？", isPresented: $isPresentingResetAllConfirm) {
+                    Button("重置全部", role: .destructive) {
                         withAnimation(Motion.spring) { onResetAll() }
                     }
-                    Button("Cancel", role: .cancel) {}
+                    Button("取消", role: .cancel) {}
                 } message: {
-                    Text("Turns providers back on for the tools you have installed and resets every provider's metrics and order. Are you sure?")
+                    Text("這將重新啟用已安裝工具的提供者，並重置每個提供者的指標與順序。確定要重置嗎？")
                 }
             }
         case .settings:
-            navigationBar(title: "Settings") {
+            navigationBar(title: "偏好設定") {
                 withAnimation(Motion.modeSwitch) { layout.screen = .dashboard }
             } trailing: {
                 EmptyView()
@@ -48,7 +48,7 @@ struct PopoverTopBar: View {
     private var customizeTitle: String {
         layout.customizeProviderID.flatMap { id in
             layout.provider(id: id).map { container.displayName(for: $0) }
-        } ?? "Customize"
+        } ?? "自訂介面"
     }
 
     private func customizeBack() {
@@ -84,15 +84,15 @@ struct PopoverTopBar: View {
 
     private func backButton(action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label("Back", systemImage: "chevron.backward")
+            Label("返回", systemImage: "chevron.backward")
                 .labelStyle(.iconOnly)
                 .frame(width: 16, height: 16)
         }
         .glassButtonStyle()
         .buttonBorderShape(.circle)
         .controlSize(.large)
-        .hoverTooltip("Back")
-        .accessibilityLabel("Back")
+        .hoverTooltip("返回")
+        .accessibilityLabel("返回")
     }
 
     private func resetButton(for providerID: String) -> some View {
