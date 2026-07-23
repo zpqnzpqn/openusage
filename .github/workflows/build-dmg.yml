@@ -40,6 +40,9 @@ jobs:
           cp "$BUILD_DIR/openusage-cli" "$APP_HELPERS/openusage"
           chmod +x "$APP_MACOS/$APP_NAME" "$APP_HELPERS/openusage"
           
+          # Embed Sparkle.framework (required dynamic framework)
+          ./script/embed_sparkle.sh "$APP_BUNDLE" "$APP_MACOS/$APP_NAME" "-"
+          
           shopt -s nullglob
           for bundle in "$BUILD_DIR"/*.bundle; do
             cp -R "$bundle" "$APP_RESOURCES/"
