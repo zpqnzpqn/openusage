@@ -22,7 +22,7 @@ jobs:
       - name: Build App & Pack DMG
         run: |
           mkdir -p dist
-          echo "==> Building OpenUsage with SwiftPM..."
+          echo "==> Building OpenUsage release binaries..."
           swift build -c release --product OpenUsage
           swift build -c release --product openusage-cli
           
@@ -35,22 +35,29 @@ jobs:
           APP_HELPERS="$APP_CONTENTS/Helpers"
           APP_RESOURCES="$APP_CONTENTS/Resources"
           
+          rm -rf "$APP_BUNDLE"
           mkdir -p "$APP_MACOS" "$APP_HELPERS" "$APP_RESOURCES"
+          
           cp "$BUILD_DIR/OpenUsage" "$APP_MACOS/$APP_NAME"
           cp "$BUILD_DIR/openusage-cli" "$APP_HELPERS/openusage"
           chmod +x "$APP_MACOS/$APP_NAME" "$APP_HELPERS/openusage"
           
-          # Embed Sparkle.framework (required dynamic framework)
-          ./script/embed_sparkle.sh "$APP_BUNDLE" "$APP_MACOS/$APP_NAME" "-"
+          install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_HELPERS/openusage" || true
+          
+          # Embed Sparkle.framework
+          ./script/embed_sparkle.sh "$APP_BUNDLE" "$APP_MACOS/$APP_NAME" "-" ""
           
           shopt -s nullglob
           for bundle in "$BUILD_DIR"/*.bundle; do
-            cp -R "$bundle" "$APP_RESOURCES/"
+            cp -R "$bundle" "$APP_RESOURCES/$(basename "$bundle")"
           done
           shopt -u nullglob
           
           if [ -f "assets/AppIcon.prebuilt/Assets.car" ]; then
-            cp "assets/AppIcon.prebuilt/Assets.car" "$APP_RESOURCES/"
+            cp "assets/AppIcon.prebuilt/Assets.car" "$APP_RESOURCES/Assets.car"
+          fi
+          if [ -f "assets/AppIcon.prebuilt/AppIcon.icns" ]; then
+            cp "assets/AppIcon.prebuilt/AppIcon.icns" "$APP_RESOURCES/AppIcon.icns"
           fi
 
           cat > "$APP_CONTENTS/Info.plist" <<PLIST
@@ -80,12 +87,15 @@ jobs:
             <true/>
             <key>NSPrincipalClass</key>
             <string>NSApplication</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
           </dict>
           </plist>
           PLIST
 
           echo "==> Ad-hoc signing bundle..."
-          codesign --force --deep --sign - "$APP_BUNDLE"
+          codesign --force --sign - "$APP_HELPERS/openusage" || true
+          codesign --force --sign - --entitlements "script/OpenUsage.local.entitlements.plist" "$APP_BUNDLE"
 
           echo "==> Creating DMG..."
           DMG_FILE="dist/OpenUsage-zh-TW-${GITHUB_REF_NAME}.dmg"
