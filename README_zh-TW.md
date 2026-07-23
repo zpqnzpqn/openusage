@@ -5,7 +5,7 @@
 OpenUsage 能在單一彈出視窗（Popover）中完整顯示您的 AI 程式設計方案使用量：包含 Session 與每週上限、點數餘額以及花費金額。您還可以將最重要的指標直接釘選至 macOS 選單列。
 
 <p align="center">
-  <img src="assets/screenshot.jpg?v=20260706" alt="OpenUsage 選單列追蹤工具介面，顯示 Claude 與 Codex 的 Session、週上限及花費" width="900">
+  <img src="assets/screenshot_zh_tw.png" alt="OpenUsage 繁體中文版選單列追蹤工具介面，顯示 Claude 與 Codex 的工作階段、週上限及花費" width="900">
 </p>
 
 ## 📥 安裝方式
