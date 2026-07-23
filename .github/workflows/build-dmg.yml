@@ -60,7 +60,7 @@ jobs:
             cp "assets/AppIcon.prebuilt/AppIcon.icns" "$APP_RESOURCES/AppIcon.icns"
           fi
 
-          cat > "$APP_CONTENTS/Info.plist" <<PLIST
+          cat > "$APP_CONTENTS/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -91,7 +91,7 @@ jobs:
             <true/>
           </dict>
           </plist>
-          PLIST
+EOF
 
           echo "==> Ad-hoc signing bundle..."
           codesign --force --sign - "$APP_HELPERS/openusage" || true
