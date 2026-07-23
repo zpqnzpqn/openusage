@@ -16,6 +16,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
       - name: Build App & Pack DMG
         run: |
           mkdir -p dist
@@ -37,12 +40,14 @@ jobs:
           cp "$BUILD_DIR/openusage-cli" "$APP_HELPERS/openusage"
           chmod +x "$APP_MACOS/$APP_NAME" "$APP_HELPERS/openusage"
           
+          shopt -s nullglob
           for bundle in "$BUILD_DIR"/*.bundle; do
-            [ -d "$bundle" ] && cp -R "$bundle" "$APP_RESOURCES/"
+            cp -R "$bundle" "$APP_RESOURCES/"
           done
+          shopt -u nullglob
           
-          if [ -d "assets/AppIcon.prebuilt" ]; path_to_car="assets/AppIcon.prebuilt/Assets.car"; [ -f "$path_to_car" ]; then
-            cp "$path_to_car" "$APP_RESOURCES/"
+          if [ -f "assets/AppIcon.prebuilt/Assets.car" ]; then
+            cp "assets/AppIcon.prebuilt/Assets.car" "$APP_RESOURCES/"
           fi
 
           cat > "$APP_CONTENTS/Info.plist" <<PLIST
